@@ -42,7 +42,7 @@ def extraer_streams_del_html():
         
         # Buscar el nombre de la emisora en líneas cercanas a la URL
         # Buscar patrones como "title":"Nombre de la radio"
-        patron_nombre = re.compile(r'"title":"([^"]+)"[^}]*"src":"' + re.escape(url_escapada), re.IGNORECASE)
+        patron_nombre = re.compile(r'"username":"([^"]+)"[^}]*"src":"' + re.escape(url_escapada), re.IGNORECASE)
         match_nombre = patron_nombre.search(html)
         if match_nombre:
             nombre = match_nombre.group(1)
