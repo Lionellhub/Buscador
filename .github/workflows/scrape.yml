@@ -1,0 +1,32 @@
+name: Actualizar Lista de Radios PR
+
+on:
+  schedule:
+    # Ejecutar cada 12 horas
+    - cron: '0 */4 * * *'
+  # Permitir ejecución manual desde la pestaña Actions
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener código del repositorio
+        uses: actions/checkout@v4
+      
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Instalar librerías
+        run: pip install -r requirements.txt
+      
+      - name: Ejecutar el scraper
+        run: python scraper.py
+      
+      - name: Guardar cambios automáticamente
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Actualización automática de la lista de radios
+          file_pattern: radios_pr.m3u
