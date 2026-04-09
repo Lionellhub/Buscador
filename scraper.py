@@ -1,6 +1,6 @@
 import requests
 import re
-import json
+import os
 
 URL = "https://es.cam4.com/?page=2"
 headers = {
@@ -29,7 +29,7 @@ def extraer_streams_del_html():
     html = respuesta.text
     streams_encontrados = []
     
-    # 1. Buscar patrón específico que encontraste: "src":"https:\u002F...
+    # 1. Buscar patrón específico: "src":"https:\u002F...
     patron_json = re.compile(r'"src":"(https?:\\u002F\\u002F[^"]+\.m3u8[^"]*)"', re.IGNORECASE)
     coincidencias = patron_json.findall(html)
     
@@ -37,11 +37,8 @@ def extraer_streams_del_html():
     for url_escapada in coincidencias:
         url_limpia = limpiar_url(url_escapada)
         
-        # Intentar extraer el nombre de la emisora del contexto cercano
         nombre = "Radio Puerto Rico"
         
-        # Buscar el nombre de la emisora en líneas cercanas a la URL
-        # Buscar patrones como "title":"Nombre de la radio"
         patron_nombre = re.compile(r'"username":"([^"]+)"[^}]*"src":"' + re.escape(url_escapada), re.IGNORECASE)
         match_nombre = patron_nombre.search(html)
         if match_nombre:
@@ -49,9 +46,8 @@ def extraer_streams_del_html():
         
         streams_encontrados.append((nombre, url_limpia))
         print(f"  ✓ Encontrada: {nombre}")
-        print(f"    URL: {url_limpia[:100]}...")
     
-    # 2. Búsqueda alternativa: buscar cualquier m3u8 en el HTML
+    # 2. Búsqueda alternativa
     patron_m3u8 = re.compile(r'(https?:[^"\']+\.m3u8[^"\']*)', re.IGNORECASE)
     todas_m3u8 = patron_m3u8.findall(html)
     
@@ -59,23 +55,21 @@ def extraer_streams_del_html():
         url_limpia = limpiar_url(url_raw)
         if url_limpia not in [u[1] for u in streams_encontrados]:
             streams_encontrados.append(("Radio detectada", url_limpia))
-            print(f"  ✓ Encontrada (método alternativo): {url_limpia[:100]}...")
+            print(f"  ✓ Encontrada (alternativo)")
     
-    # 3. Si no encontró nada, buscar dentro de scripts específicos
+    # 3. Buscar dentro de scripts si no encontró nada
     if not streams_encontrados:
         print("🔍 Buscando dentro de scripts...")
-        # Buscar cualquier script que contenga "BroadcastPreview"
         patron_script = re.compile(r'<script[^>]*>([^<]+)</script>', re.DOTALL)
         scripts = patron_script.findall(html)
         
         for script in scripts:
             if 'BroadcastPreview' in script or 'm3u8' in script:
-                # Extraer todas las URLs m3u8 dentro del script
                 urls = re.findall(r'(https?:\\u002F\\u002F[^"\'\\]+\.m3u8[^"\'\\]*)', script)
                 for url_escapada in urls:
                     url_limpia = limpiar_url(url_escapada)
                     streams_encontrados.append(("Radio encontrada", url_limpia))
-                    print(f"  ✓ Encontrada en script: {url_limpia[:100]}...")
+                    print(f"  ✓ Encontrada en script")
     
     # Eliminar duplicados
     unicos = []
@@ -88,37 +82,40 @@ def extraer_streams_del_html():
     return unicos
 
 def crear_m3u(lista_streams):
+    archivo_final = 'radios_pr.m3u'
+    archivo_temp = 'radios_pr_temp.m3u'
+
     if not lista_streams:
-        print("\n❌ No se encontraron streams.")
-        print("\n💡 Sugerencia manual:")
-        print("   1. Abre la página web")
-        print("   2. Presiona F12 → pestaña Network (Red)")
-        print("   3. Haz clic en una radio que suene")
-        print("   4. Busca archivos .m3u8 y copia la URL")
-        print("   5. Crea manualmente el archivo M3U")
-        
-        # Crear archivo con instrucciones
-        with open('radios_pr.m3u', 'w', encoding='utf-8') as f:
-            f.write('#EXTM3U\n')
-            f.write('#EXTINF:-1,EJEMPLO - Reemplazar con URL real\n')
-            f.write('# Las URLs deben tener formato normal (barras /, no \\u002F)\n')
+        print("\n⚠️ No se encontraron streams.")
+        print("🛑 Se mantiene el archivo anterior (no se sobrescribe).")
         return
-    
-    with open('radios_pr.m3u', 'w', encoding='utf-8') as f:
+
+    # (Opcional) Seguridad extra: mínimo de streams
+    if len(lista_streams) < 3:
+        print("⚠️ Muy pocos streams encontrados. Posible error.")
+        print("🛑 No se reemplaza el archivo anterior.")
+        return
+
+    # Crear archivo temporal
+    with open(archivo_temp, 'w', encoding='utf-8') as f:
         f.write('#EXTM3U\n')
         for nombre, url in lista_streams:
             f.write(f'#EXTINF:-1,{nombre}\n')
             f.write(f'{url}\n')
     
-    print(f"\n✅ ¡Éxito! Se creó 'radios_pr.m3u' con {len(lista_streams)} streams.")
-    print("\n📻 Lista de streams encontrados:")
-    for i, (nombre, url) in enumerate(lista_streams[:10]):  # Mostrar primeros 10
-        print(f"  {i+1}. {nombre}")
-        print(f"     {url[:80]}...")
+    # Validar que el archivo no esté vacío
+    if os.path.exists(archivo_temp) and os.path.getsize(archivo_temp) > 20:
+        os.replace(archivo_temp, archivo_final)
+        print(f"\n✅ Archivo actualizado con {len(lista_streams)} streams.")
+    else:
+        print("⚠️ Archivo vacío. No se reemplaza el anterior.")
+        if os.path.exists(archivo_temp):
+            os.remove(archivo_temp)
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("📻 Scraper de Emisoras de Puerto Rico - v2")
+    print("📻 Scraper de Emisoras de Puerto Rico - v3")
     print("=" * 60)
+    
     streams = extraer_streams_del_html()
     crear_m3u(streams)
